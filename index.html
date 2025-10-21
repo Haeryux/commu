@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>D&D HTML Spreadsheet</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171a2b;
+      --accent: #6ae3ff;
+      --muted: #8a90a6;
+      --grid: #262a45;
+      --text: #e7ecff;
+      --warn: #ffd166;
+      --danger: #ff6b6b;
+      --ok: #7cffb2;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 80% -10%, #1b1f36 0%, #0f1220 60%) no-repeat,
+                  linear-gradient(180deg, #0f1220, #0b0e18);
+      color: var(--text);
+      font: 14px/1.3 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow: hidden;
+    }
+    header {
+      display: flex; gap: 10px; align-items: center; justify-content: space-between;
+      padding: 14px 16px; border-bottom: 1px solid #232746; background: rgba(23,26,43,.7);
+      backdrop-filter: blur(6px);
+    }
+    .left, .right { display: inline-flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: .5px; font-weight: 700; color: var(--accent); }
+
+    button, .btn {
+      appearance: none; border: 1px solid #2a2f53; background: #161a30; color: var(--text);
+      padding: 8px 10px; border-radius: 10px; cursor: pointer; transition: .15s ease; font-weight: 600;
+    }
+    button:hover { border-color: #3d4376; transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    .danger { border-color: #593641; background: #2a1420; color: #ffb3b3; }
+
+    .toolbar-group { display: inline-flex; gap: 6px; padding: 6px; border: 1px solid #232746; border-radius: 12px; background: #101325; }
+
+    .container { display: grid; grid-template-rows: 40px 1fr 26px; height: calc(100% - 60px); margin: 10px; gap: 10px; }
+
+    #formulaBar {
+      width: 100%; border: 1px solid #232746; background: #0f1326; color: var(--text);
+      padding: 8px 10px; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .gridwrap { position: relative; border: 1px solid #232746; border-radius: 12px; overflow: auto; background: #0f1324; }
+
+    table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+    thead th {
+      position: sticky; top: 0; background: #131739; z-index: 2; color: var(--muted);
+      font-weight: 700; text-align: center; border-bottom: 1px solid #232746;
+    }
+    tbody th {
+      position: sticky; left: 0; background: #131739; z-index: 1; color: var(--muted);
+      font-weight: 700; text-align: right; padding: 6px 8px; border-right: 1px solid #232746;
+    }
+    th, td { border-right: 1px solid #232746; border-bottom: 1px solid #232746; }
+    th:first-child, td:first-child { border-left: none; }
+
+    td {
+      min-width: 120px; height: 28px; padding: 4px 6px; background: linear-gradient(180deg, #0f1222, #0d1121);
+    }
+    td[contenteditable="true"]:focus { outline: 2px solid #2f3a7a; background: #101533; }
+    td.error { background: #2a0f15; box-shadow: inset 0 0 0 1px #5a2431; }
+    td.computed { background: linear-gradient(180deg, #0f1222, #0f1630); color: #dce3ff; }
+
+    .status { color: var(--muted); font-size: 12px; padding: 2px 4px; display: flex; align-items: center; gap: 10px; }
+    .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid #2a2f53; }
+    .ok { color: var(--ok); border-color: #305a42; background: #0f1d18; }
+    .warn { color: var(--warn); border-color: #5a4f30; background: #1d1a0f; }
+    .muted { color: var(--muted); }
+
+    .note { font-size: 12px; color: var(--muted); }
+    .shortcut { border: 1px solid #2a2f53; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+    .sheetname { background: transparent; border: none; color: var(--text); font-weight: 700; font-size: 14px; padding: 4px 6px; border-radius: 6px; }
+    .sheetname:focus { outline: 2px solid #2f3a7a; background: #101533; }
+
+    input[type="file"] { display: none; }
+    label[for="importFile"] { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="left">
+      <h1>🧮 D&D Spreadsheet</h1>
+      <input id="sheetName" class="sheetname" value="Party Sheet" />
+      <div class="toolbar-group">
+        <button id="addRow">+ Row</button>
+        <button id="addCol">+ Col</button>
+        <button id="delRow" class="danger">- Row</button>
+        <button id="delCol" class="danger">- Col</button>
+      </div>
+      <div class="toolbar-group">
+        <button id="rollBtn">Roll</button>
+        <button id="recalcBtn">Recalc</button>
+      </div>
+      <div class="toolbar-group">
+        <button id="exportBtn">Export</button>
+        <label class="btn" for="importFile">Import</label>
+        <input id="importFile" type="file" accept="application/json,.json" />
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+    <div class="right note">
+      <span>Formulas: <code>=A1+B2</code>, <code>=SUM(A1:A5)</code>, <code>=AVG(B1:D1)</code>, <code>=MIN/MAX()</code>, <code>=ROLL(1d20+3)</code></span>
+    </div>
+  </header>
+
+  <div class="container">
+    <input id="formulaBar" placeholder="Formula / value for selected cell… (Enter to apply)" />
+    <div class="gridwrap">
+      <table id="grid"></table>
+    </div>
+    <div class="status">
+      <span id="statusMsg" class="pill muted">Ready</span>
+      <span class="note">Tip: Double‑click a cell to edit. Press <span class="shortcut">Enter</span> to save, <span class="shortcut">Esc</span> to cancel.</span>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== Utility: Column <-> Index =====
+  function colToName(n){
+    let s=""; n = n+1; // 1-index for labels
+    while(n>0){ let r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=Math.floor((n-1)/26); }
+    return s;
+  }
+  function nameToCol(name){
+    let n=0; for(let i=0;i<name.length;i++){ n=n*26 + (name.charCodeAt(i)-64); } return n-1;
+  }
+
+  // ===== State =====
+  const DEFAULT_ROWS = 12, DEFAULT_COLS = 8;
+  let rows = DEFAULT_ROWS, cols = DEFAULT_COLS;
+  let data = {}; // key: "r,c" -> raw string
+  let computed = {}; // key -> computed value (string or number)
+  let sel = {r:0, c:0};
+
+  const gridEl = document.getElementById('grid');
+  const formulaBar = document.getElementById('formulaBar');
+  const statusMsg = document.getElementById('statusMsg');
+  const sheetName = document.getElementById('sheetName');
+
+  // ===== Persistence =====
+  const LS_KEY = 'dnd_spreadsheet_v1';
+  function save(){
+    const payload = { rows, cols, data, name: sheetName.value };
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
+    setStatus('Saved', 'ok');
+  }
+  function load(){
+    const s = localStorage.getItem(LS_KEY);
+    if(!s) return;
+    try{
+      const payload = JSON.parse(s);
+      rows = payload.rows||rows; cols = payload.cols||cols;
+      data = payload.data||{}; sheetName.value = payload.name||'Party Sheet';
+    }catch(e){ console.warn('load failed', e); }
+  }
+
+  // ===== Grid Construction =====
+  function build(){
+    gridEl.innerHTML = '';
+    const thead = document.createElement('thead');
+    const hr = document.createElement('tr');
+    const corner = document.createElement('th'); corner.textContent = '';
+    hr.appendChild(corner);
+    for(let c=0;c<cols;c++){
+      const th = document.createElement('th'); th.textContent = colToName(c); th.style.minWidth = '120px';
+      hr.appendChild(th);
+    }
+    thead.appendChild(hr);
+
+    const tbody = document.createElement('tbody');
+    for(let r=0;r<rows;r++){
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.textContent = (r+1);
+      tr.appendChild(th);
+      for(let c=0;c<cols;c++){
+        const td = document.createElement('td');
+        td.setAttribute('contenteditable', 'true');
+        td.dataset.r = r; td.dataset.c = c;
+        td.addEventListener('focus', onCellFocus);
+        td.addEventListener('blur', onCellBlur);
+        td.addEventListener('keydown', onCellKeydown);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+
+    gridEl.appendChild(thead);
+    gridEl.appendChild(tbody);
+    renderAll();
+  }
+
+  // ===== Cell Helpers =====
+  function key(r,c){ return `${r},${c}`; }
+  function getRaw(r,c){ return data[key(r,c)] ?? ''; }
+  function setRaw(r,c,val){ data[key(r,c)] = val; }
+  function setStatus(msg, tone='muted'){
+    statusMsg.textContent = msg;
+    statusMsg.className = `pill ${tone}`;
+  }
+
+  function onCellFocus(e){
+    const td = e.currentTarget; sel = { r: +td.dataset.r, c: +td.dataset.c };
+    formulaBar.value = getRaw(sel.r, sel.c);
+    formulaBar.focus({preventScroll:true});
+    formulaBar.select();
+  }
+  function onCellBlur(e){
+    // nothing; edits captured on Enter or formula bar
+  }
+  function onCellKeydown(e){
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const td = e.currentTarget; const r = +td.dataset.r, c = +td.dataset.c;
+      setRaw(r,c, td.textContent.trim());
+      recalc(); save();
+      moveSelection(r+1, c);
+    }
+    if(e.key === 'Escape'){
+      e.currentTarget.textContent = getRaw(+e.currentTarget.dataset.r, +e.currentTarget.dataset.c);
+      e.currentTarget.blur();
+    }
+  }
+  function moveSelection(r,c){
+    r = Math.min(rows-1, Math.max(0, r)); c = Math.min(cols-1, Math.max(0, c));
+    const td = findCell(r,c); if(td){ td.focus(); }
+  }
+  function findCell(r,c){ return gridEl.querySelector(`td[data-r="${r}"][data-c="${c}"]`); }
+
+  // ===== Formula Engine =====
+  const fnMap = {
+    SUM: (arr)=>arr.reduce((a,b)=>a+(+b||0),0),
+    AVG: (arr)=>arr.length? arr.reduce((a,b)=>a+(+b||0),0)/arr.length : 0,
+    MIN: (arr)=>arr.map(Number).reduce((a,b)=>Math.min(a,b), Infinity),
+    MAX: (arr)=>arr.map(Number).reduce((a,b)=>Math.max(a,b), -Infinity),
+    ROLL: (spec)=>rollDice(spec)
+  };
+
+  function rollDice(spec){
+    // spec examples: "1d20+3", "2d6+1", accepts whitespace
+    if (Array.isArray(spec)) spec = String(spec[0] ?? '');
+    spec = String(spec).replace(/\s+/g, '');
+    const m = spec.match(/^(\d*)d(\d+)([+-]\d+)?$/i);
+    if(!m){ return NaN; }
+    const count = +(m[1]||1), faces = +m[2], mod = +(m[3]||0);
+    let total = 0; for(let i=0;i<count;i++){ total += 1 + Math.floor(Math.random()*faces); }
+    return total + mod;
+  }
+
+  function parseCellRef(ref){
+    // e.g., A1 -> {r:0,c:0}
+    const m = ref.match(/^([A-Z]+)(\d+)$/i); if(!m) return null;
+    const c = nameToCol(m[1].toUpperCase()); const r = +m[2]-1;
+    if(r<0||r>=rows||c<0||c>=cols) return null; return {r,c};
+  }
+
+  function expandRange(a,b){
+    // A1:A3 or A1:C3
+    const A = parseCellRef(a); const B = parseCellRef(b);
+    if(!A||!B) return [];
+    const r0 = Math.min(A.r,B.r), r1 = Math.max(A.r,B.r);
+    const c0 = Math.min(A.c,B.c), c1 = Math.max(A.c,B.c);
+    const out=[]; for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){ out.push(valueOf(r,c)); }
+    return out;
+  }
+
+  function evalFormula(expr, visiting=new Set()){
+    // replace ranges first: e.g., A1:B3 -> __RANGE([values]) for SUM-like functions
+    // We'll parse simple function calls and arithmetic with refs.
+    // 1) Functions with ranges: SUM(A1:A5, B1)
+    let s = expr.trim();
+
+    // Support functions: SUM, AVG, MIN, MAX, ROLL
+    s = s.replace(/\b(SUM|AVG|MIN|MAX)\s*\(([^)]*)\)/gi, (match, fn, args) => {
+      const parts = args.split(/\s*,\s*/).filter(Boolean);
+      let vals = [];
+      for(const p of parts){
+        const range = p.match(/^(\w+):(\w+)$/);
+        if(range){ vals = vals.concat(expandRange(range[1], range[2])); }
+        else {
+          const ref = parseCellRef(p);
+          if(ref) vals.push(valueOf(ref.r, ref.c)); else vals.push(+p || 0);
+        }
+      }
+      return String(fnMap[fn.toUpperCase()](vals));
+    });
+
+    // 2) Dice: ROLL(1d20+3)
+    s = s.replace(/\bROLL\s*\(([^)]*)\)/gi, (match, inner) => String(fnMap.ROLL(inner)) );
+
+    // 3) Replace single cell refs with their numeric values (or 0 if NaN) for arithmetic
+    s = s.replace(/\b([A-Z]+\d+)\b/g, (m)=>{
+      const rc = parseCellRef(m); if(!rc) return '0';
+      const v = valueOf(rc.r, rc.c); return (typeof v === 'number' ? v : (+v||0));
+    });
+
+    // 4) Evaluate arithmetic safely
+    if(!/^[-+/*(). 0-9eE]+$/.test(s)) { throw new Error('Unsupported tokens'); }
+    // eslint-disable-next-line no-new-func
+    const out = Function(`"use strict"; return (${s});`)();
+    return out;
+  }
+
+  function valueOf(r,c){
+    const k = key(r,c);
+    if(computed.hasOwnProperty(k)) return computed[k];
+    let raw = getRaw(r,c);
+    if(typeof raw === 'string' && raw.startsWith('=')){
+      try {
+        const val = evalFormula(raw.slice(1));
+        computed[k] = val; return val;
+      } catch(err){
+        computed[k] = NaN; return NaN;
+      }
+    } else {
+      const n = Number(raw);
+      computed[k] = Number.isFinite(n) && raw.trim()!=='' ? n : raw; return computed[k];
+    }
+  }
+
+  function renderAll(){
+    computed = {};
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const td = findCell(r,c); const raw = getRaw(r,c);
+        const v = valueOf(r,c);
+        td.classList.remove('error','computed');
+        if(typeof raw === 'string' && raw.startsWith('=')){
+          if(Number.isNaN(v)) td.classList.add('error'); else td.classList.add('computed');
+          td.textContent = String(v);
+        } else {
+          td.textContent = raw;
+        }
+      }
+    }
+  }
+
+  function recalc(){
+    renderAll();
+    setStatus('Recalculated', 'ok');
+  }
+
+  // ===== Formula bar actions =====
+  formulaBar.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      setRaw(sel.r, sel.c, formulaBar.value);
+      recalc(); save();
+      const td = findCell(sel.r, sel.c); if(td) td.focus();
+    }
+    if(e.key==='Escape'){
+      formulaBar.value = getRaw(sel.r, sel.c);
+    }
+  });
+
+  // ===== Toolbar =====
+  document.getElementById('addRow').onclick = () => { rows++; build(); save(); };
+  document.getElementById('addCol').onclick = () => { cols++; build(); save(); };
+  document.getElementById('delRow').onclick = () => { if(rows>1){ rows--; for(let c=0;c<cols;c++) delete data[key(rows,c)]; build(); save(); } };
+  document.getElementById('delCol').onclick = () => { if(cols>1){ cols--; for(let r=0;r<rows;r++) delete data[key(r,cols)]; build(); save(); } };
+
+  document.getElementById('recalcBtn').onclick = recalc;
+  document.getElementById('rollBtn').onclick = () => {
+    const promptSpec = prompt('Roll dice (e.g., 1d20+3, 2d6+1):');
+    if(!promptSpec) return;
+    const result = rollDice(promptSpec);
+    setStatus(Number.isNaN(result) ? 'Invalid roll spec' : `Roll ${promptSpec} → ${result}`, Number.isNaN(result)?'warn':'ok');
+  };
+
+  document.getElementById('exportBtn').onclick = () => {
+    const blob = new Blob([JSON.stringify({ rows, cols, data, name: sheetName.value }, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (sheetName.value||'sheet') + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    setStatus('Exported JSON', 'ok');
+  };
+
+  document.getElementById('importFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const obj = JSON.parse(reader.result);
+        rows = obj.rows||rows; cols = obj.cols||cols; data = obj.data||{}; sheetName.value = obj.name||'Party Sheet';
+        build(); save(); setStatus('Imported JSON', 'ok');
+      } catch(err){ setStatus('Import failed', 'warn'); }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('clearBtn').onclick = () => {
+    if(confirm('Clear all cells?')){ data = {}; build(); save(); }
+  };
+
+  sheetName.addEventListener('change', save);
+
+  // ===== Boot =====
+  load();
+  build();
+
+  // Seed helpful headers for D&D if first time
+  if(Object.keys(data).length === 0){
+    const headers = ['Name','Class','Level','STR','DEX','CON','INT','WIS','CHA','HP','AC','Notes'];
+    headers.forEach((h,i)=> setRaw(0, i, h));
+    setRaw(1, 0, 'Aria'); setRaw(1, 1, 'Bard'); setRaw(1, 2, '5');
+    setRaw(1, 3, '12'); setRaw(1, 4, '16'); setRaw(1, 5, '10'); setRaw(1, 6, '14'); setRaw(1, 7, '13'); setRaw(1, 8, '18');
+    setRaw(1, 9, '=10+CON'); setRaw(1,10,'=10+DEX'); setRaw(1,11,'Lute virtuoso');
+    recalc(); save();
+  }
+})();
+</script>
+</body>
+</html>
